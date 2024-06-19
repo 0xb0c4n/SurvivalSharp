@@ -3,6 +3,7 @@ import sys
 import requests
 import socket
 import threading
+import time
 
 from win32api import GetSystemMetrics
 
@@ -30,6 +31,21 @@ my_id = None
 
 # Vitesse de déplacement
 speed = 5
+
+direction = "down"
+animation = "idle"
+frame = 0
+frame_counter = 0
+frame_delay = 10  # Délais entre les changements de frames d'animation
+
+# Chargement des images d'animation
+animations = {
+    'down': [pygame.image.load('./assets/sprites/down/walk1.png'), pygame.image.load('./assets/sprites/down/walk2.png')],
+    'up': [pygame.image.load('./assets/sprites/top/walk1.png'), pygame.image.load('./assets/sprites/top/walk2.png')],
+    'left': [pygame.image.load('./assets/sprites/left/walk1.png'), pygame.image.load('./assets/sprites/left/walk2.png')],
+    'right': [pygame.image.load('./assets/sprites/right/walk1.png'), pygame.image.load('./assets/sprites/right/walk2.png')],
+    'idle': [pygame.image.load('./assets/sprites/down/idle.png')]  # Par défaut, l'image d'idle vers le bas
+}
 
 def receive_data(sock):
     global positions
@@ -59,7 +75,7 @@ HOST = '127.0.0.1'  # Adresse IP du serveur (à modifier si nécessaire)
 PORT = 12345        # Port à utiliser
 
 def game():
-    global my_id
+    global my_id, direction, animation, frame, frame_counter
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((HOST, PORT))
@@ -85,12 +101,22 @@ def game():
         if my_id is not None:
             if keys[pygame.K_LEFT]:
                 positions[my_id][0] -= speed
+                direction = "left"
+                animation = "walk"
             if keys[pygame.K_RIGHT]:
                 positions[my_id][0] += speed
+                direction = "right"
+                animation = "walk"
             if keys[pygame.K_UP]:
                 positions[my_id][1] -= speed
+                direction = "up"
+                animation = "walk"
             if keys[pygame.K_DOWN]:
                 positions[my_id][1] += speed
+                direction = "down"
+                animation = "walk"
+            if not (keys[pygame.K_LEFT] or keys[pygame.K_RIGHT] or keys[pygame.K_UP] or keys[pygame.K_DOWN]):
+                animation = "idle"
 
             # S'assurer que le rectangle reste dans les limites de la fenêtre
             positions[my_id][0] = max(0, min(positions[my_id][0], WIDTH - rect_size))
@@ -102,16 +128,25 @@ def game():
         # Remplir l'écran en blanc
         screen.fill(WHITE)
 
+        # Gestion de l'animation
+        if animation == "walk":
+            frame_counter += 1
+            if frame_counter >= frame_delay:
+                frame_counter = 0
+                frame = (frame + 1) % 2
+        else:
+            frame = 0
+
         # Dessiner les rectangles des joueurs
         for pid, pos in positions.items():
-            color = COLORS[pid % len(COLORS)]
-            pygame.draw.rect(screen, color, (*pos, rect_size, rect_size))
+            sprite = animations[direction][frame] if animation == "walk" else animations[direction][0]
+            screen.blit(sprite, (pos[0], pos[1]))
 
         # Mettre à jour l'affichage
         pygame.display.flip()
 
         # Limiter la vitesse de la boucle
-        pygame.time.Clock().tick(60)
+        pygame.time.Clock().tick(60)  # Ajuste la vitesse de l'animation (60 FPS ici)
 
 def receive_messages(client_socket):
     while True:
